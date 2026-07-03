@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会议进度共享平台</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    hasTunnel ? el('div', { style: { marginTop: '8px', fontSize: '12px', color: '#94a3b8' } }, document.createTextNode('局域网备用: http://' + lanUrl2.split('://')[1] + '/shared/' + m.shareId)) : null
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f1f5f9; color: #1e293b; min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: 16px 32px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.header h1 { font-size: 20px; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+.header h1 span { color: #2563eb; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+.badge-shared { font-size: 12px; background: #dbeafe; color: #1d4ed8; padding: 4px 12px; border-radius: 12px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;
+  border: 1px solid transparent; transition: all .15s;
+}
+.btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-outline { background: #fff; color: #475569; border-color: #cbd5e1; }
+.btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+.btn-success { background: #16a34a; color: #fff; }
+.btn-success:hover { background: #15803d; }
+.btn-danger { background: #dc2626; color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-ghost { background: transparent; color: #64748b; border-color: transparent; }
+.btn-ghost:hover { background: #f1f5f9; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 80px 20px; color: #94a3b8;
+}
+.empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: .4; }
+.empty-state h2 { font-size: 18px; font-weight: 500; margin-bottom: 8px; color: #64748b; }
+.empty-state p { font-size: 14px; }
+
+/* Meeting Card */
+.meeting-card {
+  background: #fff; border-radius: 10px; border: 1px solid #e2e8f0;
+  margin-bottom: 16px; overflow: hidden;
+  transition: box-shadow .2s, border-color .2s;
+}
+.meeting-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+.meeting-card.completed {
+  border-color: #86efac; background: linear-gradient(135deg, #f0fdf4 0%, #f0fdf4 100%);
+  box-shadow: 0 0 0 1px #86efac;
+}
+.meeting-card.terminated {
+  border-color: #fca5a5; background: linear-gradient(135deg, #fef2f2 0%, #fef2f2 100%);
+  box-shadow: 0 0 0 1px #fca5a5;
+}
+
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px; flex-wrap: wrap; gap: 8px;
+}
+.card-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.card-name { font-size: 16px; font-weight: 600; color: #0f172a; }
+.card-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #64748b; }
+.card-meta-item { display: flex; align-items: center; gap: 4px; }
+.card-meta-item svg { width: 14px; height: 14px; }
+.status-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px;
+  border-radius: 10px; font-size: 12px; font-weight: 500;
+}
+.status-badge.active { background: #dbeafe; color: #1d4ed8; }
+.status-badge.completed { background: #dcfce7; color: #15803d; }
+.status-badge.terminated { background: #fecaca; color: #b91c1c; }
+
+.card-divider { height: 1px; background: #f1f5f9; margin: 0 20px; }
+
+/* Stages */
+.card-stages {
+  padding: 16px 20px; overflow-x: auto;
+}
+.stages-row {
+  display: flex; align-items: flex-start; gap: 0;
+  min-width: min-content;
+}
+.stage-item {
+  display: flex; flex-direction: column; align-items: center;
+  position: relative; cursor: pointer; flex-shrink: 0;
+  min-width: 80px; padding: 0 4px;
+}
+.stage-circle {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600;
+  border: 2.5px solid #cbd5e1; background: #fff; color: #94a3b8;
+  transition: all .2s; position: relative; z-index: 1;
+}
+.stage-item.completed .stage-circle {
+  background: #16a34a; border-color: #16a34a; color: #fff;
+}
+.stage-item .stage-label {
+  font-size: 11px; color: #64748b; margin-top: 6px;
+  white-space: nowrap; text-align: center; line-height: 1.3;
+  max-width: 80px;
+}
+.stage-item.completed .stage-label { color: #15803d; font-weight: 500; }
+.stage-date {
+  font-size: 10px; color: #94a3b8; margin-top: 2px;
+}
+.stage-item.completed .stage-date { color: #16a34a; }
+
+.stage-connector {
+  width: 24px; height: 2px; background: #cbd5e1; flex-shrink: 0;
+  margin-top: 17px; position: relative;
+}
+.stage-item.completed + .stage-connector { background: #16a34a; }
+
+.stage-item.disabled { opacity: .5; cursor: not-allowed; }
+
+.card-actions {
+  padding: 12px 20px; display: flex; gap: 8px; align-items: center;
+  border-top: 1px solid #f1f5f9; flex-wrap: wrap;
+}
+.terminated-note {
+  margin-left: auto; font-size: 12px; color: #dc2626; max-width: 300px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  z-index: 1000; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 12px; width: 100%;
+  max-width: 480px; max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 0;
+}
+.modal-header h2 { font-size: 18px; font-weight: 600; }
+.modal-close {
+  background: none; border: none; cursor: pointer; font-size: 20px;
+  color: #94a3b8; padding: 4px; line-height: 1;
+}
+.modal-close:hover { color: #475569; }
+.modal-body { padding: 20px 24px; }
+.modal-footer {
+  padding: 0 24px 20px; display: flex; gap: 10px; justify-content: flex-end;
+}
+
+/* Form */
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px; }
+.form-input {
+  width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 14px; color: #1e293b; outline: none; transition: border-color .15s;
+}
+.form-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+.form-textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 14px; color: #1e293b; outline: none; resize: vertical; min-height: 80px;
+}
+.form-textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+.form-error { color: #dc2626; font-size: 12px; margin-top: 4px; display: none; }
+
+/* Share Dialog */
+.share-link-box {
+  display: flex; gap: 8px; margin: 12px 0;
+}
+.share-link-box input {
+  flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 13px; color: #1e293b; background: #f8fafc;
+}
+.share-info { font-size: 13px; color: #64748b; margin-bottom: 12px; line-height: 1.5; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1e293b; color: #fff; padding: 10px 20px; border-radius: 8px;
+  font-size: 14px; z-index: 2000; opacity: 0; transition: opacity .3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Shared view banner */
+.shared-banner {
+  background: #dbeafe; padding: 12px 32px; text-align: center;
+  font-size: 14px; color: #1d4ed8; border-bottom: 1px solid #bfdbfe;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container { padding: 16px; }
+  .header { padding: 12px 16px; }
+  .header h1 { font-size: 17px; }
+  .card-header { flex-direction: column; align-items: flex-start; }
+  .card-actions { flex-wrap: wrap; }
+  .terminated-note { margin-left: 0; max-width: 100%; }
+  .modal { max-width: 100%; margin: 10px; }
+}
+
+.loading-spinner {
+  display: flex; align-items: center; justify-content: center;
+  padding: 60px; color: #94a3b8; font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const STAGES = [
+  { key: 'oa_application', label: 'OA申请' },
+  { key: 'agreement_seal', label: '协议盖章' },
+  { key: 'medical_info_app', label: '医信申请' },
+  { key: 'meeting_held', label: '会议举办' },
+  { key: 'online_materials', label: '线上材料提交' },
+  { key: 'offline_materials', label: '线下材料提交' },
+  { key: 'meeting_payment', label: '会议打款' },
+  { key: 'invoice_retrieval', label: '取回发票' },
+  { key: 'meeting_approval', label: '会议核销' }
+];
+
+let state = { meetings: [], loading: true, isSharedView: false, shareId: null, serverInfo: null };
+const socket = io();
+let editingMeeting = null;
+
+// --- Helpers ---
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._hide); t._hide = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'className') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of children) { if (c != null) e.append(c); }
+  return e;
+}
+
+// --- API ---
+async function apiGet(url) {
+  const r = await fetch(url); if (!r.ok) throw new Error((await r.json()).error);
+  return r.json();
+}
+async function apiPost(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json()).error);
+  return r.json();
+}
+async function apiPut(url, body) {
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json()).error);
+  return r.json();
+}
+async function apiDel(url) {
+  const r = await fetch(url, { method: 'DELETE' });
+  if (!r.ok) throw new Error((await r.json()).error);
+  return r.json();
+}
+
+
+// --- Export ---
+function exportTable() {
+  if (state.meetings.length === 0) {
+    showToast('暂无会议可导出');
+    return;
+  }
+  var stageLabels = ['OA申请','协议盖章','医信申请','会议举办','线上材料提交','线下材料提交','会议打款','取回发票','会议核销'];
+  var stageKeys = ['oa_application','agreement_seal','medical_info_app','meeting_held','online_materials','offline_materials','meeting_payment','invoice_retrieval','meeting_approval'];
+  var statusMap = { active: '进行中', completed: '已完成', terminated: '已终止' };
+
+  var BOM = '\uFEFF';
+  var rows = [['会议名称','举办日期','负责人','状态']];
+  for (var i = 0; i < stageLabels.length; i++) {
+    rows[0].push(stageLabels[i], stageLabels[i] + '(日期)');
+  }
+  rows[0].push('终止备注');
+
+  state.meetings.forEach(function(m) {
+    var row = [m.name, m.date, m.personInCharge, statusMap[m.status] || m.status];
+    stageKeys.forEach(function(k) {
+      var st = m.stages[k] || { completed: false, date: null };
+      row.push(st.completed ? '已完成' : '未完成');
+      row.push(st.date || '');
+    });
+    row.push(m.status === 'terminated' ? (m.terminatedNote || '') : '');
+    rows.push(row);
+  });
+
+  var csv = BOM + rows.map(function(r) {
+    return r.map(function(cell) {
+      var s = String(cell);
+      if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',');
+  }).join('\n');
+
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '会议进度汇总_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('表格已导出');
+}
+
+// --- Socket Events ---
+socket.on('meeting:created', (m) => {
+  if (!state.meetings.find(x => x.id === m.id)) {
+    state.meetings.push(m);
+    if (!state.isSharedView) render();
+  }
+});
+socket.on('meeting:updated', (m) => {
+  const idx = state.meetings.findIndex(x => x.id === m.id);
+  if (idx >= 0) state.meetings[idx] = m;
+  if (!state.isSharedView) render();
+  else if (state.isSharedView && state.shareId === m.shareId) renderSharedView();
+});
+socket.on('meeting:deleted', (id) => {
+  state.meetings = state.meetings.filter(x => x.id !== id);
+  if (!state.isSharedView) render();
+  else {
+    document.getElementById('app').innerHTML = '<div class="empty-state"><h2>该会议已被删除</h2></div>';
+  }
+});
+
+// --- Init ---
+async function init() {
+  const path = window.location.pathname;
+  const shareMatch = path.match(/^\/shared\/([a-z0-9-]+)/);
+
+  if (shareMatch) {
+    state.isSharedView = true;
+    state.shareId = shareMatch[1];
+    renderSharedView();
+  } else {
+    state.isSharedView = false;
+    try {
+      state.meetings = await apiGet('/api/meetings');
+      try { state.serverInfo = await apiGet('/api/server-info'); } catch(e) {}
+    } catch (e) { console.error(e); }
+    state.loading = false;
+    render();
+  }
+}
+
+// --- Render: Dashboard ---
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  // Header
+  const header = el('header', { className: 'header' },
+    el('h1', null, document.createTextNode('📋 '),
+      el('span', null, document.createTextNode('会议进度共享平台'))
+    ),
+    el('div', { className: 'header-actions' },
+      el('button', { className: 'btn btn-primary', onClick: openAddModal }, document.createTextNode('+ 添加会议')),
+      el('button', { className: 'btn btn-outline', onClick: exportTable }, document.createTextNode('导出表格'))
+    )
+  );
+
+  // Container
+  const container = el('div', { className: 'container' });
+  app.append(header, container);
+
+  if (state.loading) {
+    container.append(el('div', { className: 'loading-spinner' }, document.createTextNode('加载中...')));
+    return;
+  }
+
+  if (state.meetings.length === 0) {
+    container.append(createEmptyState());
+    return;
+  }
+
+  // Sort: active first (most recent first), then completed, then terminated
+  const sorted = [...state.meetings].sort((a, b) => {
+    const order = { active: 0, completed: 1, terminated: 2 };
+    const oa = order[a.status] ?? 1, ob = order[b.status] ?? 1;
+    if (oa !== ob) return oa - ob;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+
+  sorted.forEach(m => container.append(createMeetingCard(m)));
+}
+
+function createEmptyState() {
+  return el('div', { className: 'empty-state' },
+    el('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' },
+      el('path', { d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' })
+    ),
+    el('h2', null, document.createTextNode('暂无会议')),
+    el('p', null, document.createTextNode('点击右上角「添加会议」开始使用'))
+  );
+}
+
+function createMeetingCard(m) {
+  const isCompleted = m.status === 'completed';
+  const isTerminated = m.status === 'terminated';
+  const completedCount = STAGES.filter(s => m.stages[s.key]?.completed).length;
+
+  const card = el('div', {
+    className: 'meeting-card' +
+      (isTerminated ? ' terminated' : '') +
+      (isCompleted ? ' completed' : '')
+  });
+
+  // Header
+  const statusText = { active: '进行中', completed: '已完成', terminated: '已终止' }[m.status] || '进行中';
+  card.append(
+    el('div', { className: 'card-header' },
+      el('div', { className: 'card-title-group' },
+        el('span', { className: 'card-name' }, document.createTextNode(m.name)),
+        el('span', { className: 'status-badge ' + m.status }, document.createTextNode(statusText))
+      ),
+      el('div', { className: 'card-meta' },
+        el('span', { className: 'card-meta-item' },
+          document.createTextNode('📅 ' + m.date)
+        ),
+        el('span', { className: 'card-meta-item' },
+          document.createTextNode('👤 ' + m.personInCharge)
+        ),
+        el('span', { className: 'card-meta-item', style: { color: '#64748b', fontSize: '12px' } },
+          document.createTextNode(completedCount + '/' + STAGES.length)
+        )
+      )
+    )
+  );
+
+  // Stages
+  const stagesEl = el('div', { className: 'card-stages' });
+  const stagesRow = el('div', { className: 'stages-row' });
+  STAGES.forEach((s, i) => {
+    const st = m.stages[s.key] || { completed: false, date: null };
+    const item = el('div', {
+      className: 'stage-item' + (st.completed ? ' completed' : '') + (isTerminated ? ' disabled' : ''),
+      onClick: isTerminated ? undefined : (() => toggleStage(m.id, s.key, !st.completed))
+    },
+      el('div', { className: 'stage-circle' },
+        st.completed ?
+          el('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: '#fff', 'stroke-width': '3', width: '18', height: '18' },
+            el('path', { d: 'M5 12l5 5 9-9' })
+          ) :
+          document.createTextNode(String(i + 1))
+      ),
+      el('div', { className: 'stage-label' }, document.createTextNode(s.label)),
+      st.date ? el('div', { className: 'stage-date' }, document.createTextNode(st.date)) : null
+    );
+    stagesRow.append(item);
+    if (i < STAGES.length - 1) {
+      stagesRow.append(el('div', { className: 'stage-connector' }));
+    }
+  });
+  stagesEl.append(stagesRow);
+  card.append(el('div', { className: 'card-divider' }));
+  card.append(stagesEl);
+
+  // Actions
+  const actions = el('div', { className: 'card-actions' });
+  const baseUrl = window.location.origin;
+  actions.append(
+    el('button', { className: 'btn btn-sm btn-outline', onClick: (e) => { e.stopPropagation(); openShareDialog(m); } },
+      document.createTextNode('分享')
+    ),
+    el('button', {
+      className: 'btn btn-sm ' + (isTerminated ? 'btn-success' : 'btn-danger'),
+      onClick: (e) => { e.stopPropagation(); openTerminateModal(m); }
+    },
+      document.createTextNode(isTerminated ? '恢复' : '终止')
+    ),
+    el('button', {
+      className: 'btn btn-sm btn-ghost',
+      style: { color: '#94a3b8' },
+      onClick: (e) => { e.stopPropagation(); deleteMeeting(m.id); }
+    },
+      document.createTextNode('删除')
+    )
+  );
+  if (isTerminated && m.terminatedNote) {
+    actions.append(
+      el('span', { className: 'terminated-note', title: m.terminatedNote },
+        document.createTextNode('⚠ ' + m.terminatedNote)
+      )
+    );
+  }
+  card.append(actions);
+
+  return card;
+}
+
+// --- Actions ---
+async function toggleStage(meetingId, stageKey, completed) {
+  try {
+    await apiPut('/api/meetings/' + meetingId + '/stage', { stageKey, completed });
+  } catch (e) { showToast('操作失败: ' + e.message); }
+}
+
+async function deleteMeeting(id) {
+  if (!confirm('确定要删除该会议吗？')) return;
+  try {
+    await apiDel('/api/meetings/' + id);
+    showToast('已删除');
+  } catch (e) { showToast('删除失败: ' + e.message); }
+}
+
+// --- Modal: Add/Edit Meeting ---
+function openAddModal() {
+  editingMeeting = null;
+  const addForm = createAddForm();
+  showModal('添加会议', addForm.body, addForm.buttons);
+}
+
+function createAddForm() {
+  const form = el('div');
+  const nameInput = el('input', { className: 'form-input', placeholder: '请输入会议名称', id: 'meet-name' });
+  const dateInput = el('input', { className: 'form-input', type: 'date', id: 'meet-date' });
+  dateInput.value = todayStr();
+  const personInput = el('input', { className: 'form-input', placeholder: '请输入负责人姓名', id: 'meet-person' });
+  const errorEl = el('div', { className: 'form-error', id: 'meet-error' });
+
+  form.append(
+    createFormGroup('会议名称', nameInput),
+    createFormGroup('举办日期', dateInput),
+    createFormGroup('负责人', personInput),
+    errorEl
+  );
+
+  setTimeout(() => nameInput.focus(), 100);
+  return {
+    body: form,
+    buttons: [
+      el('button', { className: 'btn btn-outline', onClick: closeModal }, document.createTextNode('取消')),
+      el('button', { className: 'btn btn-primary', onClick: () => submitAdd(nameInput, dateInput, personInput, errorEl) }, document.createTextNode('确认添加'))
+    ]
+  };
+}
+
+function createFormGroup(labelText, inputEl) {
+  const g = el('div', { className: 'form-group' });
+  g.append(el('label', { className: 'form-label' }, document.createTextNode(labelText)), inputEl);
+  return g;
+}
+
+async function submitAdd(nameInput, dateInput, personInput, errorEl) {
+  const name = nameInput.value.trim();
+  const date = dateInput.value;
+  const person = personInput.value.trim();
+  errorEl.style.display = 'none';
+
+  if (!name || !date || !person) {
+    errorEl.textContent = '请填写所有必填项';
+    errorEl.style.display = 'block';
+    return;
+  }
+  try {
+    await apiPost('/api/meetings', { name, date, personInCharge: person });
+    closeModal();
+    showToast('会议添加成功');
+  } catch (e) { showToast('添加失败: ' + e.message); }
+}
+
+// --- Modal: Terminate ---
+function openTerminateModal(m) {
+  if (m.status === 'terminated') {
+    // Re-activate
+    apiPut('/api/meetings/' + m.id + '/terminate', { note: '' }).catch(e => showToast('操作失败'));
+    return;
+  }
+  const termForm = createTerminateForm(m);
+  showModal('终止会议', termForm.body, termForm.buttons);
+}
+
+function createTerminateForm(m) {
+  const form = el('div');
+  form.append(
+    el('p', { style: { fontSize: '14px', color: '#64748b', marginBottom: '12px' } },
+      document.createTextNode('确定要终止「' + m.name + '」吗？终止后会议将标记为红色。')
+    )
+  );
+  const noteInput = el('textarea', {
+    className: 'form-textarea', placeholder: '请输入终止原因（可选）', id: 'term-note'
+  });
+  form.append(createFormGroup('终止备注', noteInput));
+
+  setTimeout(() => noteInput.focus(), 100);
+  return {
+    body: form,
+    buttons: [
+      el('button', { className: 'btn btn-outline', onClick: closeModal }, document.createTextNode('取消')),
+      el('button', { className: 'btn btn-danger', onClick: () => submitTerminate(m, noteInput) }, document.createTextNode('确认终止'))
+    ]
+  };
+}
+
+async function submitTerminate(m, noteInput) {
+  try {
+    await apiPut('/api/meetings/' + m.id + '/terminate', { note: noteInput.value.trim() });
+    closeModal();
+    showToast('已终止');
+  } catch (e) { showToast('操作失败: ' + e.message); }
+}
+
+// --- Modal: Share ---
+function openShareDialog(m) {
+  const shareForm = createShareForm(m);
+  showModal('分享会议', shareForm.body, shareForm.buttons);
+}
+
+function createShareForm(m) {
+  const form = el('div');
+  var tunnelUrl2 = window.location.origin;
+  var lanUrl2 = (state.serverInfo && state.serverInfo.ip !== '127.0.0.1') ? ('http://' + state.serverInfo.ip + ':' + state.serverInfo.port) : null;
+  var primaryUrl = tunnelUrl2 || lanUrl2 || window.location.origin;
+  const shareUrl = primaryUrl + '/shared/' + m.shareId;
+  var hasTunnel = !!tunnelUrl2;
+
+  form.append(
+    el('div', { className: 'share-info' },
+                    document.createTextNode(hasTunnel ? '将此链接发给同事，对方打开只看到这一场会议，标记后实时同步回来：' : '将此链接发送给同事，对方打开只看到这一场会议（需在同一局域网）')
+    ),
+    el('div', { className: 'share-link-box' },
+      el('input', { type: 'text', value: shareUrl, readonly: 'readonly', id: 'share-link-input' }),
+      el('button', {
+        className: 'btn btn-sm btn-primary',
+        onClick: () => {
+          const inp = document.getElementById('share-link-input');
+          inp.select(); navigator.clipboard.writeText(inp.value).then(() => {
+            showToast('链接已复制到剪贴板');
+          }).catch(() => {
+            document.execCommand('copy');
+            showToast('链接已复制');
+          });
+        }
+      }, document.createTextNode('复制'))
+    )
+  );
+
+  return {
+    body: form,
+    buttons: [
+      el('button', { className: 'btn btn-outline', onClick: closeModal }, document.createTextNode('关闭'))
+    ]
+  };
+}
+
+// --- Modal Framework ---
+function showModal(title, bodyEl, footerButtons) {
+  let overlay = document.getElementById('modal-overlay');
+  if (!overlay) {
+    overlay = el('div', { id: 'modal-overlay', className: 'modal-overlay' });
+    document.body.append(overlay);
+  }
+  overlay.innerHTML = '';
+
+  const modal = el('div', { className: 'modal' });
+  const header = el('div', { className: 'modal-header' },
+    el('h2', null, document.createTextNode(title)),
+    el('button', { className: 'modal-close', onClick: closeModal }, document.createTextNode('✕'))
+  );
+  const body = el('div', { className: 'modal-body' });
+  body.append(bodyEl);
+  const footer = el('div', { className: 'modal-footer' });
+  if (footerButtons) {
+    footerButtons.forEach(btn => footer.append(btn));
+  }
+
+  modal.append(header, body, footer);
+  overlay.append(modal);
+  overlay.classList.add('open');
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+}
+
+function closeModal() {
+  const overlay = document.getElementById('modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+// --- Shared View ---
+async function renderSharedView() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  const header = el('header', { className: 'header' },
+    el('h1', null, document.createTextNode('📋 '),
+      el('span', null, document.createTextNode('会议进度共享平台'))
+    ),
+    el('div', { className: 'header-actions' },
+      el('span', { className: 'badge-shared' }, document.createTextNode('共享视图'))
+    )
+  );
+  app.append(header);
+
+  const banner = el('div', { className: 'shared-banner' },
+    document.createTextNode('这是共享视图 — 您的标记将实时同步至发起人的总表')
+  );
+  app.append(banner);
+
+  const container = el('div', { className: 'container' });
+  app.append(container);
+
+  container.append(el('div', { className: 'loading-spinner' }, document.createTextNode('加载中...')));
+
+  try {
+    const meeting = await apiGet('/api/share/' + state.shareId);
+    container.innerHTML = '';
+    const card = createSharedCard(meeting);
+    container.append(card);
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><h2>共享链接无效</h2><p>该会议已被删除或链接有误</p></div>';
+  }
+}
+
+function createSharedCard(m) {
+  const card = el('div', {
+    className: 'meeting-card' +
+      (m.status === 'terminated' ? ' terminated' : '') +
+      (m.status === 'completed' ? ' completed' : '')
+  });
+
+  const completedCount = STAGES.filter(s => m.stages[s.key]?.completed).length;
+  const statusText = { active: '进行中', completed: '已完成', terminated: '已终止' }[m.status] || '进行中';
+
+  card.append(
+    el('div', { className: 'card-header' },
+      el('div', { className: 'card-title-group' },
+        el('span', { className: 'card-name' }, document.createTextNode(m.name)),
+        el('span', { className: 'status-badge ' + m.status }, document.createTextNode(statusText))
+      ),
+      el('div', { className: 'card-meta' },
+        el('span', { className: 'card-meta-item' }, document.createTextNode('📅 ' + m.date)),
+        el('span', { className: 'card-meta-item' }, document.createTextNode('👤 ' + m.personInCharge)),
+        el('span', { className: 'card-meta-item', style: { color: '#64748b', fontSize: '12px' } },
+          document.createTextNode(completedCount + '/' + STAGES.length)
+        )
+      )
+    )
+  );
+
+  // Stages (clickable for shared view)
+  const stagesEl = el('div', { className: 'card-stages' });
+  const stagesRow = el('div', { className: 'stages-row' });
+  STAGES.forEach((s, i) => {
+    const st = m.stages[s.key] || { completed: false, date: null };
+    const isDisabled = m.status === 'terminated';
+    const item = el('div', {
+      className: 'stage-item' + (st.completed ? ' completed' : '') + (isDisabled ? ' disabled' : ''),
+      onClick: isDisabled ? undefined : (() => syncShareStage(state.shareId, s.key, !st.completed))
+    },
+      el('div', { className: 'stage-circle' },
+        st.completed ?
+          el('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: '#fff', 'stroke-width': '3', width: '18', height: '18' },
+            el('path', { d: 'M5 12l5 5 9-9' })
+          ) :
+          document.createTextNode(String(i + 1))
+      ),
+      el('div', { className: 'stage-label' }, document.createTextNode(s.label)),
+      st.date ? el('div', { className: 'stage-date' }, document.createTextNode(st.date)) : null
+    );
+    stagesRow.append(item);
+    if (i < STAGES.length - 1) {
+      stagesRow.append(el('div', { className: 'stage-connector' }));
+    }
+  });
+  stagesEl.append(stagesRow);
+  card.append(el('div', { className: 'card-divider' }));
+  card.append(stagesEl);
+
+  if (m.status === 'terminated' && m.terminatedNote) {
+    card.append(el('div', { className: 'card-actions' },
+      el('span', { className: 'terminated-note' }, document.createTextNode('⚠ ' + m.terminatedNote))
+    ));
+  }
+
+  return card;
+}
+
+async function syncShareStage(shareId, stageKey, completed) {
+  try {
+    await apiPost('/api/share/' + shareId + '/sync', { stageKey, completed });
+  } catch (e) { showToast('同步失败: ' + e.message); }
+}
+
+// --- Start ---
+init();
+</script>
+</body>
+</html>
+
+
