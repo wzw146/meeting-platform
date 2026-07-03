@@ -1,0 +1,14 @@
+{
+  "name": "meeting-progress-platform",
+  "version": "1.0.0",
+  "description": "会议进度共享平台 - 支持多用户协同标记会议流程进度",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  }
+}
